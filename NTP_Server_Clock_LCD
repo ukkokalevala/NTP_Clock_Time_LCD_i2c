@@ -1,0 +1,113 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <ESP8266WiFi.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+
+// LCD setup
+LiquidCrystal_I2C lcd(0x27, 16, 2);  // Adjust address if needed
+
+// Wi-Fi credentials
+const char* ssid = "yourSSID";  // Replace with your SSID
+const char* password = "yourPASSWORD";  // Replace with your Wi-Fi password
+
+// NTP client setup
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 7200, 60000); // NTP server, UTC+2 for South Africa, update every 60s
+
+void setup() {
+  // Initialize Serial Monitor
+  Serial.begin(115200);
+
+  // Initialize LCD
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Connecting...");
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("Connected to Wi-Fi");
+
+  // Initialize time client
+  timeClient.begin();
+
+  // Display IP address on LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("WiFi connected");
+  lcd.setCursor(0, 1);
+  lcd.print("IP:");
+  lcd.setCursor(3, 1);
+  lcd.print(WiFi.localIP());
+  delay(2000);
+  lcd.clear();
+}
+
+void loop() {
+  // Update time from NTP server
+  timeClient.update();
+
+  // Get current time
+  unsigned long epochTime = timeClient.getEpochTime();
+  int currentHour = timeClient.getHours();
+  int currentMinute = timeClient.getMinutes();
+  int currentSecond = timeClient.getSeconds();
+
+  // Display time on LCD
+  lcd.setCursor(0, 0);
+  lcd.print("Time:");
+  lcd.setCursor(6, 0);
+  if (currentHour < 10) lcd.print("0");
+  lcd.print(currentHour);
+  lcd.print(":");
+  if (currentMinute < 10) lcd.print("0");
+  lcd.print(currentMinute);
+  lcd.print(":");
+  if (currentSecond < 10) lcd.print("0");
+  lcd.print(currentSecond);
+
+  // Calculate date from epoch time
+  int days = epochTime / 86400;
+  int year = 1970;
+  while (days >= 365) {
+    if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+      if (days >= 366) {
+        days -= 366;
+      } else {
+        break;
+      }
+    } else {
+      days -= 365;
+    }
+    year++;
+  }
+
+  // Calculate month and day
+  int monthDays[] = {31, (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  int month = 0;
+  while (days >= monthDays[month]) {
+    days -= monthDays[month];
+    month++;
+  }
+
+  int day = days + 1;
+
+  // Display date on LCD
+  lcd.setCursor(0, 1);
+  lcd.print("Date:");
+  lcd.setCursor(6, 1);
+  if (day < 10) lcd.print("0");
+  lcd.print(day);
+  lcd.print("/");
+  if (month + 1 < 10) lcd.print("0");
+  lcd.print(month + 1);
+  lcd.print("/");
+  lcd.print(year);
+
+  delay(1000); // Refresh every second
+}
